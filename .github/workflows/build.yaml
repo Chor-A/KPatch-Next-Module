@@ -16,7 +16,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.set_vars.outputs.version }}
+      version: ${{ steps.check_tag.outputs.version }}
       check_tag: ${{ steps.check_tag.outputs.need_release }}
     steps:
     - name: Checkout
@@ -28,7 +28,7 @@ jobs:
       run: |
         grep -v '^#' version.properties | sed -e 's/ *= */=/g' -e 's/"//g' >> $GITHUB_ENV
 
-    - name: download kpatch-next binaries
+    - name: Download kpatch-next binaries
       run: |
         mkdir -p module/bin
         TAG="${{ env['kpatch-next'] }}"
@@ -58,15 +58,15 @@ jobs:
       uses: pnpm/action-setup@v4
       with:
         version: 'latest'
+        cache: true  # Handle pnpm caching here cleanly
 
     - name: Setup Node
       uses: actions/setup-node@v4
       with:
         node-version: 'latest'
-        cache: 'pnpm'
-        cache-dependency-path: webui/pnpm-lock.yaml
+        # Removed conflicting pnpm cache parameters here
 
-    - name: build webroot
+    - name: Build webroot
       run: |
         cd webui
         pnpm install --frozen-lockfile
@@ -99,7 +99,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     needs: build
-    if: needs.release.outputs.check_tag == 'true'
+    if: needs.build.outputs.check_tag == 'true'  # Fixed reference from needs.release to needs.build
     steps:
     - name: Checkout
       uses: actions/checkout@v6
@@ -107,7 +107,7 @@ jobs:
         fetch-depth: 2
 
     - name: Download artifact
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@v4  # Fixed invalid version @v7 to @v4
       with:
         name: ${{ env.MODULE_NAME }}-${{ github.run_number }}
         path: ${{ env.MODULE_NAME }}
@@ -127,8 +127,8 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ needs.release.outputs.version }}
-        name: ${{ needs.release.outputs.version }}
+        tag_name: ${{ needs.build.outputs.version }}  # Fixed reference to needs.build
+        name: ${{ needs.build.outputs.version }}
         body: ${{ env.CHANGELOG }}
         files: ${{ env.MODULE_NAME }}.zip
       env:
